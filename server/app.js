@@ -17,8 +17,11 @@ const app = express()
 app.use(express.json({ limit: "50mb" }))
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(cookieParser());
-app.use(helmet());
-const allowedOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : ["http://localhost:3000", "http://localhost:5173", "http://192.168.1.71:3000"];
+app.use(helmet({ crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" } }));
+const allowedOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [
+  "http://54.156.101.212",
+  "http://ec2-54-156-101-212.compute-1.amazonaws.com"
+];
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
