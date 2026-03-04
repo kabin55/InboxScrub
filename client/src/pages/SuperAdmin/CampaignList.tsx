@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { SuperSidebar } from "../../components/dashboard/SuperSidebar";
 import { SuperTopbar } from "../../components/dashboard/SuperTopbar";
 import { fetchCampaigns, type CampaignListResponse } from "../../api/admin";
 import {
-    Eye, ChevronLeft, ChevronRight, FileText, Calendar,
-    User, Mail, LayoutDashboard, Download, Search, ChevronDown, MonitorPlay
+    ChevronLeft, ChevronRight, FileText,
+    Mail, Search
 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 
@@ -28,7 +28,6 @@ const CampaignList: React.FC = () => {
     const [data, setData] = useState<CampaignListResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
-    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [searchQuery, setSearchQuery] = useState("");
 
     useEffect(() => {

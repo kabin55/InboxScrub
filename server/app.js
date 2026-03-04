@@ -54,6 +54,9 @@ app.use('/api/templates', templateRoutes)
 app.get('/', (req, res) => {
   res.send('Server is running');
 });
+app.get('/health', (req, res) => {
+  res.status(200).json({ message: 'Everything is fine' });
+});
 
 // Global error handler
 app.use((err, req, res, next) => {

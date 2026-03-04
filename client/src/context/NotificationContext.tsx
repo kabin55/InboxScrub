@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, type ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, type ReactNode, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { toast, ToastContainer, type ToastOptions } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';

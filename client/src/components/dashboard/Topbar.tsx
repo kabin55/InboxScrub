@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { User, Settings, LogOut, ChevronDown, Bell, X, Check, Trash2 } from "lucide-react";
+import { User, Settings, LogOut, ChevronDown, Bell, Check, Trash2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useData } from "../../context/DataContext";
 import { useNotification } from "../../context/NotificationContext";
@@ -20,8 +20,7 @@ export const Topbar = () => {
     unreadCount,
     markAsRead,
     markAllAsRead,
-    clearNotifications,
-    removeNotification
+    clearNotifications
   } = useNotification();
   const navigate = useNavigate();
 

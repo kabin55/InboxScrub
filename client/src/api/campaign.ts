@@ -59,6 +59,7 @@ export interface UserCampaignDetailResponse {
         status: string;
         reason: string | null;
         updatedAt: string;
+        opened?: boolean;
     }[];
 }
 

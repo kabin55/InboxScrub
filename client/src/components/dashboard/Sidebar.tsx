@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   Mail,
-  ShieldCheck,
   Send,
   CreditCard,
   BarChart3,

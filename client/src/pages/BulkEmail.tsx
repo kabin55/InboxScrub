@@ -706,7 +706,7 @@ export default function EmailSanitizerBulkPage() {
             <div className="flex items-center gap-4">
               {!isHistoryExpanded && !loadingCampaigns && (
                 <span className="text-sm font-medium text-gray-500 dark:text-gray-400 hidden sm:inline-block">
-                  {campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''} total {campaigns.length > 0 ? `(Latest: ${new Date(campaigns[0].createdAt).toLocaleDateString()})` : ''}
+                  {campaigns.length} campaign{campaigns.length !== 1 ? 's' : ''} total {campaigns.length > 0 ? `(Latest: ${new Date(campaigns[0].created_at).toLocaleDateString()})` : ''}
                 </span>
               )}
               {isHistoryExpanded ? <ChevronDown className="w-6 h-6 text-gray-400" /> : <ChevronRight className="w-6 h-6 text-gray-400" />}
