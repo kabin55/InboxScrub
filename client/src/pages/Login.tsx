@@ -4,12 +4,14 @@ import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import { googleLogin } from "../api/auth";
 import { tokenLogin } from "../api/iam";
 import { useAuth } from "../context/AuthContext";
+import { useNotification } from "../context/NotificationContext";
 import { Mail, KeyRound, ArrowRight, ChevronLeft } from "lucide-react";
 import { motion } from "framer-motion";
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { setUser } = useAuth();
+  const { addToast } = useNotification();
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -20,21 +22,22 @@ const Login: React.FC = () => {
   ): Promise<void> => {
     try {
       if (!credentialResponse.credential) {
-        alert("Google login failed");
+        addToast("error", "Google login failed: no credential.");
         return;
       }
 
       setIsLoading(true);
       const response = await googleLogin(credentialResponse.credential);
       setUser(response.user);
+      addToast("success", "Login successful!");
       if (response.user.role === "Superadmin") {
         navigate("/admin-dashboard");
       } else {
         navigate("/dashboard");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Login Failed");
+      addToast("error", err.response?.data?.message || "Login Failed");
     } finally {
       setIsLoading(false);
     }
@@ -58,11 +61,12 @@ const Login: React.FC = () => {
     try {
       const response = await tokenLogin(email, token);
       setUser(response.user);
+      addToast("success", "Logged in with token!");
       navigate("/dashboard");
     } catch (err: any) {
-
       console.error(err);
       setErrorMsg("Invalid token or Credentials.");
+      addToast("error", "Invalid token or Credentials.");
     } finally {
       setIsLoading(false);
     }
@@ -122,7 +126,7 @@ const Login: React.FC = () => {
             <div className="w-full max-w-[300px]">
               <GoogleLogin
                 onSuccess={handleGoogleLogin}
-                onError={() => alert("Google login failed")}
+                onError={() => addToast("error", "Google login failed")}
                 useOneTap
                 theme="outline"
                 shape="pill"

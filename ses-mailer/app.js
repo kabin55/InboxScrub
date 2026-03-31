@@ -16,17 +16,16 @@ const sesClient = new SESClient({
 
 const BATCH_SIZE = 50;
 
-
 // Send email via SES
-async function sendEmail({ to, from, subject, body }) {
+async function sendEmail({ to, from, subject, html, text }) {
     const command = new SendEmailCommand({
         Source: from,
         Destination: { ToAddresses: [to] },
         Message: {
             Subject: { Data: subject, Charset: "UTF-8" },
             Body: {
-                Html: { Data: body, Charset: "UTF-8" },
-                Text: { Data: body, Charset: "UTF-8" },
+                Html: { Data: html, Charset: "UTF-8" },
+                Text: { Data: text, Charset: "UTF-8" },
             },
         },
     });
@@ -35,160 +34,200 @@ async function sendEmail({ to, from, subject, body }) {
 }
 
 export const handler = async (event) => {
-    console.log(1)
+    console.log("Received event structure");
     try {
-        const payload =
-            typeof event.body === "string" ? JSON.parse(event.body) : event.body;
-
-        const { emails, content } = payload;
-        const jobId = payload.jobId || payload._id;
-        console.log(emails)
-        if (!jobId) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ message: "jobId is required" }),
-            };
-        }
-
-        if (!emails || !content) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ message: "emails and content are required" }),
-            };
-        }
-
-        const contentData = Array.isArray(content) ? content[0] : content;
-        const { subject, body: emailBody, sender } = contentData;
-
         await connectDB();
 
-        // Normalize emails
-        // Normalize emails and generate trackingId
-        const recipientList = emails.map((e) => {
-            const email = typeof e === "string" ? e : e.email;
-            return {
-                email,
-                trackingId: crypto.randomBytes(16).toString("hex"),
-            };
-        });
-
-        /* --------------------------------------------------
-           1. Insert QUEUED records (bulk)
-        -------------------------------------------------- */
-        const bulkInsert = recipientList.map((r) => ({
-            insertOne: {
-                document: {
-                    jobId,
-                    email: r.email,
-                    trackingId: r.trackingId,
-                    status: "queued",
-                    attempts: 0,
-                    opened: false,
-                    messageId: null,
-                    error: null,
-                    lastUpdated: new Date(),
-                },
-            },
-        }));
-
-        if (bulkInsert.length) {
-            await EmailStatus.bulkWrite(bulkInsert);
+        // Support both SQS Records and backward-compatible direct invoke payload
+        let records = [];
+        if (event.Records) {
+            records = event.Records;
+        } else {
+            const bodyStr = typeof event.body === "string" ? event.body : JSON.stringify(event.body || event);
+            records = [{ body: bodyStr }];
         }
 
-        /* --------------------------------------------------
-           2. Send Emails in batches
-        -------------------------------------------------- */
-        let successCount = 0;
-        let failCount = 0;
-        const results = [];
+        const responses = [];
 
-        for (let i = 0; i < recipientList.length; i += BATCH_SIZE) {
-            const batch = recipientList.slice(i, i + BATCH_SIZE);
+        for (const record of records) {
+            const payload = typeof record.body === "string" ? JSON.parse(record.body) : record.body;
 
-            const promises = batch.map(async (recipient) => {
-                const email = recipient.email;
-                const trackingId = recipient.trackingId;
-                const trackingPixel = `<img src="${process.env.TRACKING_URL}/${trackingId}" width="1" height="1" style="display:none;" />`;
-                const bodyWithTracking = emailBody + trackingPixel;
-                console.log("Email Pixel:", trackingPixel);
-                try {
-                    const response = await sendEmail({
-                        to: email,
-                        from: sender,
-                        subject,
-                        body: bodyWithTracking,
-                    });
+            const { emails, content } = payload;
+            const jobId = payload.jobId || payload._id;
 
-                    // Update SUCCESS
-                    await EmailStatus.updateOne(
-                        { jobId, email },
-                        {
-                            $set: {
-                                status: "sent",
-                                messageId: response.MessageId,
-                                error: null,
-                                lastUpdated: new Date(),
-                            },
-                            $inc: { attempts: 1 },
-                        }
-                    );
+            if (!jobId) {
+                console.error("jobId is required", payload);
+                responses.push({ statusCode: 400, message: "jobId is required" });
+                continue;
+            }
 
-                    successCount++;
-                    results.push({ email, jobId, status: "sent", reason: null });
-                } catch (err) {
-                    // Update FAILED
-                    await EmailStatus.updateOne(
-                        { jobId, email },
-                        {
-                            $set: {
-                                status: "failed",
-                                error: err.message,
-                                lastUpdated: new Date(),
-                            },
-                            $inc: { attempts: 1 },
-                        }
-                    );
+            if (!emails || !content) {
+                console.error("emails and content are required", payload);
+                responses.push({ statusCode: 400, message: "emails and content are required" });
+                continue;
+            }
 
-                    failCount++;
-                    results.push({ email, jobId, status: "failed", reason: err.message });
+            const contentData = Array.isArray(content) ? content[0] : content;
+            const { subject, body: emailBody, sender } = contentData;
+
+            /* --------------------------------------------------
+               1. Idempotency Check & Insert QUEUED records
+            -------------------------------------------------- */
+            let existingStatuses = await EmailStatus.find({ jobId });
+
+            if (existingStatuses.length === 0) {
+                const recipientList = emails.map((e) => {
+                    const email = typeof e === "string" ? e : e.email;
+                    const name = typeof e === "string" ? "" : (e.name || "");
+                    const phone = typeof e === "string" ? "" : (e.phone || "");
+
+                    return {
+                        email,
+                        name,
+                        phone,
+                        trackingId: crypto.randomBytes(16).toString("hex"),
+                    };
+                });
+
+                const bulkInsert = recipientList.map((r) => ({
+                    insertOne: {
+                        document: {
+                            jobId,
+                            email: r.email,
+                            name: r.name,
+                            phone: r.phone,
+                            trackingId: r.trackingId,
+                            status: "queued",
+                            whatsappStatus: "pending",
+                            attempts: 0,
+                            opened: false,
+                            messageId: null,
+                            error: null,
+                            lastUpdated: new Date(),
+                        },
+                    },
+                }));
+
+                if (bulkInsert.length) {
+                    await EmailStatus.bulkWrite(bulkInsert);
                 }
-            });
 
-            await Promise.all(promises);
-        }
+                existingStatuses = await EmailStatus.find({ jobId });
+            }
 
-        /* --------------------------------------------------
-           3. Final response
-        -------------------------------------------------- */
-        console.log("Email sent successfully", jobId, successCount, failCount);
+            /* --------------------------------------------------
+               2. Filter emails pending delivery (Idempotency)
+            -------------------------------------------------- */
+            const pendingEmails = existingStatuses.filter(s => s.status === 'queued' || s.status === 'failed');
 
-        console.log("Detailed Results:");
-        results.forEach(({ email, jobId, status, reason, trackingId }) => {
-            console.log(
-                `Email: ${email}, JobId: ${jobId},id:${trackingId} Status: ${status}${reason ? `, Reason: ${reason}` : ""
-                }`
-            );
-        });
-        // console.log("Email Body:", emailBody);
+            if (pendingEmails.length === 0) {
+                console.log(`Job ${jobId} already fully processed or no pending emails. Skipping.`);
+                responses.push({ statusCode: 200, message: `Job ${jobId} already fully processed` });
+                continue;
+            }
 
+            /* --------------------------------------------------
+               3. Send Emails in batches
+            -------------------------------------------------- */
+            let successCount = 0;
+            let failCount = 0;
+            const results = [];
 
-        console.log('-------------------------------------')
-        return {
-            statusCode: 200,
-            body: JSON.stringify({
+            for (let i = 0; i < pendingEmails.length; i += BATCH_SIZE) {
+                const batch = pendingEmails.slice(i, i + BATCH_SIZE);
+
+                const promises = batch.map(async (recipient) => {
+                    const email = recipient.email;
+                    const trackingId = recipient.trackingId;
+                    
+                    // Construct Tracking Pixel (HTML only)
+                    const trackingPixel = `<img src="${process.env.TRACKING_URL}/${trackingId}" width="1" height="1" style="display:none;" />`;
+                    const htmlBodyWithTracking = emailBody + trackingPixel;
+                    
+                    // Construct Clean Text Body (No HTML)
+                    const textBody = emailBody
+                        .replace(/<[^>]*>?/gm, '') // Strip HTML tags
+                        .replace(/&nbsp;/g, ' '); // Clean entities
+
+                    try {
+                        const response = await sendEmail({
+                            to: email,
+                            from: sender,
+                            subject,
+                            html: htmlBodyWithTracking,
+                            text: textBody,
+                        });
+
+                        // Update SUCCESS
+                        await EmailStatus.updateOne(
+                            { jobId, email },
+                            {
+                                $set: {
+                                    status: "sent",
+                                    messageId: response.MessageId,
+                                    error: null,
+                                    lastUpdated: new Date(),
+                                },
+                                $inc: { attempts: 1 },
+                            }
+                        );
+
+                        successCount++;
+                        console.log(`[SENT] Email: ${email} | Tracking: ${process.env.TRACKING_URL}/${trackingId}`);
+                        results.push({ email, jobId, status: "sent", reason: null });
+                    } catch (err) {
+                        // Update FAILED
+                        await EmailStatus.updateOne(
+                            { jobId, email },
+                            {
+                                $set: {
+                                    status: "failed",
+                                    error: err.message,
+                                    lastUpdated: new Date(),
+                                },
+                                $inc: { attempts: 1 },
+                            }
+                        );
+
+                        failCount++;
+                        console.error(`[FAILED] Email: ${email} | Error: ${err.message}`);
+                        results.push({ email, jobId, status: "failed", reason: err.message });
+                    }
+                });
+
+                await Promise.all(promises);
+            }
+
+            /* --------------------------------------------------
+               4. Record response
+            -------------------------------------------------- */
+            console.log(`Job ${jobId} Processing Completed. Success: ${successCount}, Fail: ${failCount}`);
+            console.log("results", results)
+
+            // Note: If some failed, and we want SQS to auto-retry the entire message, 
+            // we could throw an error here depending on the requirement.
+            // Currently it marks them as "failed" in DB and completes the Lambda successfully.
+            // If strict SQS DLQ usage is desired, uncomment the below line to trigger Lambda failure for SQS retry:
+            // if (failCount > 0) throw new Error(`${failCount} emails failed to send. Triggering retry for Job ${jobId}`);
+
+            responses.push({
                 jobId,
                 stats: {
-                    total: recipientList.length,
+                    total: pendingEmails.length,
                     sent: successCount,
                     failed: failCount,
                 },
-            }),
-        };
-    } catch (error) {
-        console.error("Lambda error:", error);
+            });
+        }
+
         return {
-            statusCode: 500,
-            body: JSON.stringify({ message: error.message }),
+            statusCode: 200,
+            body: JSON.stringify(responses.length === 1 ? responses[0] : responses),
         };
+
+    } catch (error) {
+        console.error("Lambda SQS Processing error:", error);
+        // Throw the error so SQS knows the message processing failed entirely. SQS will retry.
+        throw error;
     }
 };

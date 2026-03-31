@@ -164,7 +164,6 @@ export default function EmailSanitizerBulkPage() {
     setError(null);
 
     // Initial smooth progress
-    let currentProgress = 0;
 
     // Status rotation messages
     const messages = [
@@ -185,46 +184,68 @@ export default function EmailSanitizerBulkPage() {
     }, 2000);
 
     // Progress Simulation
-    const progressInterval = setInterval(() => {
-      // Fast initial progress (0-30%)
-      if (currentProgress < 70) {
-        currentProgress += 0.75;
-      }
-      // Slow progress (70-85%)
-      else if (currentProgress < 75) {
-        currentProgress += 0.5;
-      }
-      // Stall at 85% until API returns
-      else if (currentProgress < 99) {
-        // Very slow crawl if completely stuck waiting for backend
-        currentProgress += 0.05;
+    let simulatedProgress = 0;
+    let isFetched = false;
+    let fetchResult: BulkValidationResponse | null = null;
+
+    const runProgressSimulation = () => {
+      if (simulatedProgress >= 100) return;
+
+      let delay = 2000;
+      let increment = 1;
+
+      if (isFetched) {
+        // Accelerate to 100% if data is fetched
+        delay = 500;
+        increment = 2; // Fixed increment to show fast move to 100
+      } else {
+        if (simulatedProgress < 50) {
+          delay = 2000;
+        } else if (simulatedProgress < 75) {
+          delay = 3500;
+        } else if (simulatedProgress < 90) {
+          delay = 4500;
+        } else {
+          delay = 5000;
+        }
+
+        // Slow crawl from 95 to 100 if not fetched
+        if (simulatedProgress >= 95) {
+          delay = 10000; // Even slower
+        }
       }
 
-      // Cap at 99% until realized
-      if (currentProgress > 99) currentProgress = 99;
+      simulatedProgress = Math.min(100, simulatedProgress + increment);
+      setProgress(simulatedProgress);
 
-      setProgress(currentProgress);
-    }, 100);
+      if (simulatedProgress < 100) {
+        setTimeout(runProgressSimulation, delay);
+      } else if (isFetched && fetchResult) {
+        // We reached 100 and have data, finish up
+        clearInterval(statusInterval);
+        setStatusMessage("Validation Complete!");
+        setTimeout(() => processResults(fetchResult!), 600);
+      }
+    };
+
+    runProgressSimulation();
 
     try {
-      const data: BulkValidationResponse = await uploadBulkEmails(selectedFile);
-
-      // Stop the simulation
-      clearInterval(progressInterval);
-      clearInterval(statusInterval);
-
-      // Force to 100% completion
-      setProgress(100);
-      setStatusMessage("Validation Complete!");
-
-      // Small delay to let user see "100%" before showing results
-      setTimeout(() => processResults(data), 600);
+      fetchResult = await uploadBulkEmails(selectedFile);
+      isFetched = true;
+      
+      // If we happened to be at 100 already (though unlikely with these delays)
+      if (simulatedProgress >= 100) {
+        clearInterval(statusInterval);
+        setStatusMessage("Validation Complete!");
+        processResults(fetchResult);
+      }
 
     } catch (err: any) {
-      clearInterval(progressInterval);
-      clearInterval(statusInterval);
+      isFetched = false;
       setLoading(false);
       setProgress(0);
+      clearInterval(statusInterval);
       const msg = err.message || "Failed to process file";
       setError(msg);
       addToast("error", msg);
@@ -385,6 +406,7 @@ export default function EmailSanitizerBulkPage() {
                 </div>
                 <span className="text-gray-700 dark:text-gray-200 font-bold">{loading ? "Processing..." : "Click to choose file or drag & drop"}</span>
                 <span className="text-sm text-gray-400 dark:text-gray-500 mt-1">CSV, Excel (.xlsx), or TXT file</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 mt-1 italic">Format: name, email, phone (or just email)</span>
                 {fileName && <span className="mt-4 px-4 py-2 bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-900/30 rounded-xl text-sm text-green-700 dark:text-green-400 font-bold">{fileName}</span>}
               </label>
 
@@ -573,7 +595,7 @@ export default function EmailSanitizerBulkPage() {
                   <p className="text-gray-400 dark:text-gray-500 font-bold bg-white/80 dark:bg-gray-900/80 px-4 py-2 rounded-xl backdrop-blur-sm">Waiting for upload...</p>
                 </div>
               )}
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minHeight={350}>
                 <PieChart>
                   <Pie
                     data={displayPieData}

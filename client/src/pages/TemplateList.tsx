@@ -4,11 +4,13 @@ import { Topbar } from "../components/dashboard/Topbar";
 import { FileCode2, Search, Trash2, Eye } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { fetchTemplates, deleteTemplate, getTemplateDetails, type Template } from "../api/template";
+import { useNotification } from "../context/NotificationContext";
 
 export default function TemplateList() {
     const [templates, setTemplates] = useState<Template[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
+    const { addToast } = useNotification();
 
     const loadTemplates = async () => {
         setLoading(true);
@@ -31,8 +33,9 @@ export default function TemplateList() {
         try {
             await deleteTemplate(id);
             setTemplates(prev => prev.filter(t => t._id !== id));
+            addToast('success', `Template "${name}" deleted successfully.`);
         } catch (error: any) {
-            alert(error?.response?.data?.message || "Failed to delete template");
+            addToast('error', error?.response?.data?.message || "Failed to delete template");
         }
     };
 
@@ -42,11 +45,11 @@ export default function TemplateList() {
             if (data.previewUrl) {
                 window.open(data.previewUrl, '_blank');
             } else {
-                alert("Preview not available.");
+                addToast('warning', "Preview not available.");
             }
         } catch (error) {
             console.error("Failed to fetch preview URL", error);
-            alert("Unable to show preview.");
+            addToast('error', "Unable to show preview.");
         }
     };
 

@@ -2,15 +2,18 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies (optimized)
 COPY package*.json ./
-RUN npm install --production
+RUN npm ci --omit=dev
 
-# Copy source code
+# Copy entire project (safer than missing files)
 COPY . .
 
-# Expose container port (ECS task definition maps it)
+# Set environment
+ENV NODE_ENV=production
+
+# Expose port
 EXPOSE 5000
 
-# Run server
+# Start server
 CMD ["node", "server.js"]

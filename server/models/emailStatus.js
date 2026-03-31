@@ -3,7 +3,10 @@ import mongoose from "mongoose";
 const emailStatusSchema = new mongoose.Schema({
     jobId: { type: String, required: true },
     email: { type: String, required: true },
+    name: { type: String, default: "" },
+    phone: { type: String, default: "" },
     status: { type: String, default: "queued" }, // queued, sent, delivered, bounced, failed
+    whatsappStatus: { type: String, enum: ["pending", "sent", "delivered", "failed"], default: "pending" },
     attempts: { type: Number, default: 0 },
     opened: { type: Boolean, default: false },
     messageId: { type: String },

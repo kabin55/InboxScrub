@@ -3,12 +3,14 @@ import { Link, useNavigate } from "react-router-dom";
 import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import { googleLogin } from "../api/auth";
 import { useAuth } from "../context/AuthContext";
+import { useNotification } from "../context/NotificationContext";
 import { Mail, Lock, User, ArrowRight, ChevronLeft } from "lucide-react";
 import { motion } from "framer-motion";
 
 const Signup: React.FC = () => {
   const navigate = useNavigate();
   const { setUser } = useAuth();
+  const { addToast } = useNotification();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,17 +21,18 @@ const Signup: React.FC = () => {
   ): Promise<void> => {
     try {
       if (!credentialResponse.credential) {
-        alert("Google signup failed");
+        addToast("error", "Google signup failed: no credential.");
         return;
       }
 
       setIsLoading(true);
       const response = await googleLogin(credentialResponse.credential);
       setUser(response.user);
+      addToast("success", "Signup successful!");
       navigate("/dashboard");
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("Signup Failed");
+      addToast("error", err.response?.data?.message || "Signup Failed");
     } finally {
       setIsLoading(false);
     }
@@ -41,7 +44,7 @@ const Signup: React.FC = () => {
     // Simulate API call
     setTimeout(() => {
       console.log("Signup with:", name, email, password);
-      alert("Manual signup not implemented yet");
+      addToast("warning", "Manual signup not implemented yet");
       setIsLoading(false);
     }, 1000);
   };
@@ -100,7 +103,7 @@ const Signup: React.FC = () => {
             <div className="w-full max-w-[300px]">
               <GoogleLogin
                 onSuccess={handleGoogleSignup}
-                onError={() => alert("Google signup failed")}
+                onError={() => addToast("error", "Google signup failed")}
                 useOneTap
                 theme="outline"
                 shape="pill"

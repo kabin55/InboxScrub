@@ -12,7 +12,7 @@ connectDB();
 
 const app = express();
 const PORT = process.env.PORT || 8000;
-const HOST = process.env.HOST || "0.0.0.0";
+const HOST = process.env.HOST || "localhost";
 
 // Middleware
 app.use(express.json({ limit: "50mb" }));
@@ -59,6 +59,13 @@ app.post("/", async (req, res) => {
 //     res.status(500).json({ message: "Internal Server Error" });
 // });
 
+import { startPoller } from "./sqsPoller.js";
+
 app.listen(PORT, HOST, () => {
     console.log(`Server is running heavily on http://${HOST}:${PORT}`);
+    
+    // Start local SQS polling
+    startPoller().catch(err => {
+        console.error("[SQS-POLLER] Failed to start:", err);
+    });
 });

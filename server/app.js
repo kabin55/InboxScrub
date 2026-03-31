@@ -5,31 +5,30 @@ import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
 
 
-import emailRoutes from './routes/email.routes.js'
-import authRoutes from "./routes/auth.routes.js";
-import userRoutes from "./routes/user.routes.js";
-import adminRoutes from "./routes/admin.routes.js";
-import campaignRoutes from "./routes/campaign.routes.js";
-import trackingRoutes from "./routes/tracking.routes.js";
-import templateRoutes from "./routes/template.routes.js";
+import { emailRoutes } from './modules/email/index.js'
+import { authRoutes } from "./modules/auth/index.js";
+import { userRoutes } from "./modules/user/index.js";
+import { adminRoutes } from "./modules/admin/index.js";
+import { campaignRoutes } from "./modules/campaign/index.js";
+import { trackingRoutes } from "./modules/tracking/index.js";
+import { templateRoutes } from "./modules/template/index.js";
+import { whatsappRoutes } from "./modules/whatsapp/index.js";
 
 const app = express()
 app.use(express.json({ limit: "50mb" }))
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(cookieParser());
 app.use(helmet({ crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" } }));
-const allowedOrigins = process.env.CORS_ORIGINS ? process.env.CORS_ORIGINS.split(',') : [
-  "http://54.156.101.212",
-  "http://ec2-54-156-101-212.compute-1.amazonaws.com"
-];
+
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: ["http://localhost:3000",
+    "http://localhost:8000",
+    "http://ec2-54-156-101-212.compute-1.amazonaws.com/",
+    "http://54.156.101.212:3000",
+    "https:deepakclass.info",
+    "https:www.deepakclass.info",
+    "https://decade-pursuant-cdt-regime.trycloudflare.com"
+  ],
   credentials: true,
 })
 );
@@ -53,6 +52,7 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/campaign', campaignRoutes)
 app.use('/api/track', trackingRoutes)
 app.use('/api/templates', templateRoutes)
+app.use('/api/whatsapp', whatsappRoutes)
 
 app.get('/', (req, res) => {
   res.send('Server is running');

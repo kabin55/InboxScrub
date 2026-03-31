@@ -3,6 +3,7 @@ import { Copy, Key, Check, Plus, Trash2, Edit2, AlertTriangle, RefreshCw } from 
 import type { Permission } from "../../api/auth";
 import { createToken, fetchTokens, revokeToken, updateTokenPermissions, type IamToken } from "../../api/iam";
 import { Button } from "../ui/Button";
+import { useNotification } from "../../context/NotificationContext";
 
 const AVAILABLE_PERMISSIONS: Permission[] = [
     'Email Sanitization',
@@ -13,6 +14,7 @@ const AVAILABLE_PERMISSIONS: Permission[] = [
 export const IAMSettings = () => {
     const [tokens, setTokens] = useState<IamToken[]>([]);
     const [loading, setLoading] = useState(true);
+    const { addToast } = useNotification();
 
     // Create Token State
     const [isGenerating, setIsGenerating] = useState(false);
@@ -48,10 +50,11 @@ export const IAMSettings = () => {
             setGeneratedToken(res.token.tokenValue || "Error: Token not returned");
             setSelectedPermissions([]);
             setNote("");
+            addToast('success', "New API token generated successfully.");
             loadTokens();
         } catch (error) {
             console.error("Failed to generate token", error);
-            alert("Failed to generate token");
+            addToast('error', "Failed to generate token. Please try again.");
         } finally {
             setIsGenerating(false);
         }
@@ -61,6 +64,7 @@ export const IAMSettings = () => {
         if (generatedToken) {
             navigator.clipboard.writeText(generatedToken);
             setCopied(true);
+            addToast('info', "Token copied to clipboard.");
             setTimeout(() => setCopied(false), 2000);
         }
     };
@@ -69,9 +73,11 @@ export const IAMSettings = () => {
         if (!window.confirm("Are you sure you want to revoke this token?")) return;
         try {
             await revokeToken(id);
+            addToast('success', "Token revoked successfully.");
             loadTokens();
         } catch (error) {
             console.error("Failed to revoke token", error);
+            addToast('error', "Failed to revoke token.");
         }
     };
 
@@ -79,9 +85,11 @@ export const IAMSettings = () => {
         try {
             await updateTokenPermissions(id, perms);
             setEditingToken(null);
+            addToast('success', "Permissions updated successfully.");
             loadTokens();
         } catch (error) {
             console.error("Failed to update token", error);
+            addToast('error', "Failed to update permissions.");
         }
     };
 

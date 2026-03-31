@@ -10,6 +10,7 @@ import { Sidebar } from "../components/dashboard/Sidebar";
 import { Topbar } from "../components/dashboard/Topbar";
 import { Button } from "../components/ui/Button";
 import { fetchUserCampaignDetails, type UserCampaignDetailResponse } from "../api/campaign";
+import { useNotification } from "../context/NotificationContext";
 
 const UserCampaignDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -19,6 +20,7 @@ const UserCampaignDetails: React.FC = () => {
     const [selectedEmail, setSelectedEmail] = useState<UserCampaignDetailResponse['emails'][0] | null>(null);
     const [campaign, setCampaign] = useState<UserCampaignDetailResponse | null>(null);
     const [loading, setLoading] = useState(true);
+    const { addToast } = useNotification();
 
     useEffect(() => {
         if (id) {
@@ -122,12 +124,32 @@ const UserCampaignDetails: React.FC = () => {
 
                             <div className="flex items-center gap-3">
                                 <Button
-                                    variant="primary"
+                                    variant="secondary"
                                     onClick={handleExportCSV}
                                     className="flex items-center gap-2"
                                 >
                                     <Download className="w-4 h-4" />
                                     Export CSV
+                                </Button>
+                                <Button
+                                    variant="primary"
+                                    onClick={async () => {
+                                        try {
+                                            const { triggerWhatsappFollowup } = await import("../api/campaign");
+                                            const res = await triggerWhatsappFollowup(campaign.jobId);
+                                            if (res.success) {
+                                                addToast('success', res.message || "Follow-up triggered successfully!");
+                                                loadCampaignDetails(campaign.jobId); // Refresh state
+                                            } else {
+                                                addToast('warning', res.message);
+                                            }
+                                        } catch (e) {
+                                            addToast('error', "Failed to run follow-ups");
+                                        }
+                                    }}
+                                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                                >
+                                    WhatsApp Follow-Up
                                 </Button>
                             </div>
                         </div>
@@ -240,9 +262,10 @@ const UserCampaignDetails: React.FC = () => {
                             <table className="w-full text-left">
                                 <thead className="bg-[#fafbfc] dark:bg-gray-800/50 text-[10px] font-black uppercase text-gray-400">
                                     <tr>
-                                        <th className="px-6 py-4">Email Address</th>
+                                        <th className="px-6 py-4">Participant</th>
                                         <th className="px-6 py-4">Status</th>
                                         <th className="px-6 py-4">Opened</th>
+                                        <th className="px-6 py-4">WhatsApp</th>
                                         <th className="px-6 py-4">Failure Reason</th>
                                         <th className="px-6 py-4 text-right">Actions</th>
                                     </tr>
@@ -258,7 +281,8 @@ const UserCampaignDetails: React.FC = () => {
                                         filteredEmails.map((email, idx) => (
                                             <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                                                 <td className="px-6 py-4 font-medium text-gray-900 dark:text-white text-sm">
-                                                    {email.email}
+                                                    <div>{email.name || "Unknown"}</div>
+                                                    <div className="text-xs text-gray-500 font-normal">{email.email} / {email.phone || "No phone"}</div>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <span className={`px-2 py-0.5 text-[10px] font-black rounded-lg border uppercase tracking-wider ${getStatusStyles(email.status)}`}>
@@ -275,6 +299,21 @@ const UserCampaignDetails: React.FC = () => {
                                                         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-black rounded-lg border uppercase tracking-wider bg-gray-50 text-gray-400 border-gray-100 dark:bg-gray-800 dark:text-gray-500 dark:border-gray-700">
                                                             <Mail className="w-3.5 h-3.5 opacity-60" />
                                                             Unopened
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {email.whatsappStatus === 'sent' ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-black rounded-lg border uppercase tracking-wider bg-green-50 text-green-600 border-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/30">
+                                                            Sent
+                                                        </span>
+                                                    ) : email.whatsappStatus === 'failed' ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-black rounded-lg border uppercase tracking-wider bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/30">
+                                                            Failed
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-black rounded-lg border uppercase tracking-wider bg-gray-50 text-gray-400 border-gray-100 dark:bg-gray-800 dark:text-gray-500 dark:border-gray-700">
+                                                            Pending
                                                         </span>
                                                     )}
                                                 </td>
@@ -328,7 +367,10 @@ const UserCampaignDetails: React.FC = () => {
                             <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
                                 <div>
                                     <h3 className="text-lg font-black text-gray-900 dark:text-white">Email Details</h3>
-                                    <p className="text-sm text-gray-500 font-medium">{selectedEmail.email}</p>
+                                    <p className="text-sm text-gray-500 font-medium">
+                                        {selectedEmail.name ? `${selectedEmail.name} - ` : ""}{selectedEmail.email}
+                                        {selectedEmail.phone ? ` (${selectedEmail.phone})` : ""}
+                                    </p>
                                 </div>
                                 <button
                                     onClick={() => setSelectedEmail(null)}
@@ -361,6 +403,24 @@ const UserCampaignDetails: React.FC = () => {
                                                 </span>
                                             )}
                                         </div>
+                                        <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">WhatsApp</p>
+                                            {selectedEmail.whatsappStatus === 'sent' ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-black rounded-lg border uppercase tracking-wider bg-green-50 text-green-600 border-green-100 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900/30">
+                                                    Sent
+                                                </span>
+                                            ) : selectedEmail.whatsappStatus === 'failed' ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-black rounded-lg border uppercase tracking-wider bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/30">
+                                                    Failed
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-black rounded-lg border uppercase tracking-wider bg-gray-50 text-gray-400 border-gray-100 dark:bg-gray-800 dark:text-gray-500 dark:border-gray-700">
+                                                    Pending
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-4">
                                         <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
                                             <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Last Updated</p>
                                             <p className="text-sm font-mono text-gray-600">{new Date(selectedEmail.updatedAt).toLocaleString()}</p>

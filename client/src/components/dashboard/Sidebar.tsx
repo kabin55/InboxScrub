@@ -7,6 +7,7 @@ import {
   Settings,
   LogOut,
   FileUp,
+  History as HistoryIcon,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -16,6 +17,7 @@ export const MENU = [
   { label: "Single Email Validation", icon: Mail, path: "/single-email" },
   { label: "Bulk Email Validation", icon: Mail, path: "/bulk-email" },
   { label: "Mass Email Campaign", icon: Send, path: "/campaigns" },
+  { label: "Campaign History", icon: HistoryIcon, path: "/campaign-history" },
   { label: "Upload Template", icon: FileUp, path: "/templates" },
   { label: "Pricing / Buy Credits", icon: CreditCard, path: "/pricing" },
   { label: "History & Reports", icon: BarChart3, path: "/reports" },
@@ -32,7 +34,7 @@ export const Sidebar = () => {
     if (itemPath === "/single-email" || itemPath === "/bulk-email") {
       return user.permissions.includes("Email Sanitization");
     }
-    if (itemPath === "/campaigns") {
+    if (itemPath === "/campaigns" || itemPath === "/campaign-history") {
       return user.permissions.includes("Bulk Mailing");
     }
     if (itemPath === "/templates") {

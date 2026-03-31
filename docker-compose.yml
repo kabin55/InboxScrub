@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  server:
+    image: server_mar30:v5
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - MAILER_URL=http://ses-mailer:8000
+    depends_on:
+      - ses-mailer
+    restart: unless-stopped
+
+  ses-mailer:
+    image: ses-mar30:v1
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./ses-mailer/.env
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+
+  client:
+    image: client_mar30:v1
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+    restart: unless-stopped

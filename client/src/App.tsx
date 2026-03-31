@@ -32,6 +32,7 @@ import SuperDashboard from "./pages/SuperAdmin/SuperDashboard";
 import CampaignList from "./pages/SuperAdmin/CampaignList";
 import CampaignDetails from "./pages/SuperAdmin/CampaignDetails";
 import UserCampaignDetails from "./pages/UserCampaignDetails";
+import CampaignHistory from "./pages/CampaignHistory";
 
 import { NotificationProvider } from "./context/NotificationContext";
 
@@ -76,6 +77,7 @@ export default function App() {
 
                     <Route element={<PermissionRoute requiredPermission="Bulk Mailing" />}>
                       <Route path="/campaigns" element={<MassEmail />} />
+                      <Route path="/campaign-history" element={<CampaignHistory />} />
                     </Route>
 
                     <Route element={<PermissionRoute requiredPermission="Upload Template" />}>

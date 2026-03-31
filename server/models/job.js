@@ -1,7 +1,7 @@
 
 import mongoose from "mongoose";
 import { v4 as uuidv4 } from "uuid";
-import { triggerJobProcessor } from "../services/lambda.service.js";
+import { sendToSQS } from "../modules/email/sqs.service.js";
 
 const contentSchema = new mongoose.Schema({
     subject: {
@@ -52,7 +52,7 @@ const jobSchema = new mongoose.Schema({
         required: true
     },
     emails: {
-        type: [String],
+        type: [mongoose.Schema.Types.Mixed],
         default: [],
     },
     content: {
@@ -78,6 +78,15 @@ const jobSchema = new mongoose.Schema({
         type: [String],
         default: [],
     },
+    channel: {
+        type: String,
+        enum: ["email", "whatsapp", "message"],
+        default: "email",
+    },
+    selectedChannels: {
+        type: [String],
+        default: ["email"],
+    },
 }, {
     timestamps: true // creates createdAt and updatedAt
 });
@@ -89,11 +98,13 @@ jobSchema.pre("save", function () {
 
 
 jobSchema.post("save", async function (doc) {
-    if (this._wasNew && doc.status === "queued") {
+    console.log(`Checking SQS trigger for Job ${doc._id}. wasNew: ${this._wasNew}, status: ${doc.status}, channel: ${doc.channel}`);
+    if (this._wasNew && doc.status === "queued" && doc.channel === "email") {
         try {
-            await triggerJobProcessor(doc);
+            console.log(`Triggering SQS for job ${doc._id}`);
+            await sendToSQS(doc);
         } catch (err) {
-            console.error("Lambda trigger error:", err.message);
+            console.error("SQS trigger error:", err.message);
         }
     }
 });

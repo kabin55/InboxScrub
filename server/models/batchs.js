@@ -17,9 +17,9 @@ const batchSchema = new mongoose.Schema({
             _id: { type: String, default: uuidv4 }, // Unique ID for EACH batch
             batchName: { type: String, default: () => `Batch ${new Date().toISOString()}` },
             emails: [{
-                type: String,
-                trim: true,
-                lowercase: true
+                name: { type: String, default: "" },
+                email: { type: String, trim: true, lowercase: true, required: true },
+                phone: { type: String, default: "" }
             }],
             createdAt: { type: Date, default: Date.now }
         }

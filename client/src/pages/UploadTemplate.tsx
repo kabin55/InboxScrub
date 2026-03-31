@@ -5,6 +5,7 @@ import { FileUp, FileCode2, AlertCircle } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { uploadTemplateApi } from "../api/template";
 import { useNavigate } from "react-router-dom";
+import { useNotification } from "../context/NotificationContext";
 
 export default function UploadTemplate() {
     const [file, setFile] = useState<File | null>(null);
@@ -12,6 +13,7 @@ export default function UploadTemplate() {
     const [description, setDescription] = useState("");
     const [isUploading, setIsUploading] = useState(false);
     const navigate = useNavigate();
+    const { addToast } = useNotification();
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -20,7 +22,7 @@ export default function UploadTemplate() {
                 setFile(selectedFile);
                 if (!templateName) setTemplateName(selectedFile.name.replace(".html", ""));
             } else {
-                alert("Please select a valid HTML file.");
+                addToast('error', "Please select a valid HTML file.");
                 e.target.value = "";
             }
         }
@@ -39,11 +41,11 @@ export default function UploadTemplate() {
             if (description) formData.append("description", description);
 
             const response = await uploadTemplateApi(formData);
-            alert(`Template "${response.name}" uploaded successfully!`);
+            addToast('success', `Template "${response.name}" uploaded successfully!`);
             navigate("/templates");
         } catch (err: any) {
             console.error("Upload failed:", err);
-            alert(err.message || "Failed to upload template.");
+            addToast('error', err.message || "Failed to upload template.");
         } finally {
             setIsUploading(false);
         }

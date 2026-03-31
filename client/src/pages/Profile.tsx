@@ -3,6 +3,7 @@ import { Sidebar } from "../components/dashboard/Sidebar";
 import { Topbar } from "../components/dashboard/Topbar";
 import { User, Mail, Camera, Loader2, Calendar, Shield } from "lucide-react";
 import { getUserProfile, updateUserProfile, type UserProfile } from "../api/profile";
+import { useNotification } from "../context/NotificationContext";
 
 export default function Profile() {
     const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -12,6 +13,8 @@ export default function Profile() {
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
+    const { addToast } = useNotification();
+
     useEffect(() => {
         const fetchProfile = async () => {
             try {
@@ -20,6 +23,7 @@ export default function Profile() {
                 setName(data.user.name);
             } catch (err) {
                 setError("Failed to load profile");
+                addToast("error", "Failed to load profile");
                 console.error(err);
             } finally {
                 setLoading(false);
@@ -37,9 +41,11 @@ export default function Profile() {
             const updated = await updateUserProfile({ name: name.trim() });
             setProfile(updated);
             setSuccess(true);
+            addToast("success", "Profile updated successfully!");
             setTimeout(() => setSuccess(false), 3000);
         } catch (err) {
             setError("Failed to save changes");
+            addToast("error", "Failed to save changes");
             console.error(err);
         } finally {
             setSaving(false);

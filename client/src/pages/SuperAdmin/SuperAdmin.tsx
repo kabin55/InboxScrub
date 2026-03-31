@@ -7,6 +7,7 @@ import { AddCreditsPanel } from "../../components/dashboard/AddCreditsPanel";
 
 
 import { fetchUsers, updateUser, type AdminUser } from "../../api/admin";
+import { useNotification } from "../../context/NotificationContext";
 
 // MOCK_USERS removed
 
@@ -59,6 +60,8 @@ const SuperAdmin: React.FC = () => {
     }, [searchQuery]);
 
 
+    const { addToast } = useNotification();
+
     const toggleBlockStatus = async (userId: string, currentStatus: boolean) => {
         try {
             await updateUser(userId, { isBlocked: !currentStatus });
@@ -68,9 +71,10 @@ const SuperAdmin: React.FC = () => {
                     user.id === userId ? { ...user, isBlocked: !currentStatus } : user
                 )
             );
+            addToast("success", `User successfully ${!currentStatus ? 'blocked' : 'unblocked'}`);
         } catch (error) {
             console.error("Failed to update user status", error);
-            alert("Failed to update user status");
+            addToast("error", "Failed to update user status");
         }
     };
 
@@ -92,9 +96,10 @@ const SuperAdmin: React.FC = () => {
                     massMalingCredits: (u.massMalingCredits || 0) + newMassCredits
                 } : u
             ));
+            addToast("success", "User credits and plan updated successfully");
         } catch (error) {
             console.error("Failed to update credits/plan", error);
-            alert("Failed to update user");
+            addToast("error", "Failed to update user credits/plan");
         }
     };
 

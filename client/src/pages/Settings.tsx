@@ -4,10 +4,12 @@ import { Settings as SettingsIcon, Bell, Palette } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 import { IAMSettings } from "../components/dashboard/IAMSettings";
 import { useAuth } from "../context/AuthContext";
+import { useNotification } from "../context/NotificationContext";
 
 export default function Settings() {
     const { theme, setTheme } = useTheme();
     const { user } = useAuth();
+    const { addToast } = useNotification();
 
     return (
         <div className="bg-[#fafafa] dark:bg-gray-950 min-h-screen transition-colors duration-300">
@@ -45,7 +47,12 @@ export default function Settings() {
                                         <p className="text-xs text-gray-400">Receive updates about your validations</p>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" className="sr-only peer" defaultChecked />
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            defaultChecked
+                                            onChange={(e) => addToast('success', `Email notifications ${e.target.checked ? 'enabled' : 'disabled'}`)}
+                                        />
                                         <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                                     </label>
                                 </div>
@@ -55,7 +62,12 @@ export default function Settings() {
                                         <p className="text-xs text-gray-400">Get notified when campaigns complete</p>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" className="sr-only peer" defaultChecked />
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only peer"
+                                            defaultChecked
+                                            onChange={(e) => addToast('success', `Campaign alerts ${e.target.checked ? 'enabled' : 'disabled'}`)}
+                                        />
                                         <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                                     </label>
                                 </div>

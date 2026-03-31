@@ -225,9 +225,9 @@ export const BatchDisplay = ({ onSelect, selectedBatchId }: BatchDisplayProps) =
                                 )}
                                 <div className={`overflow-hidden transition-all duration-300 ${expandedBatchId === batch._id ? 'max-h-60 mb-3' : 'max-h-0'}`}>
                                     <div className="bg-gray-50 dark:bg-gray-800/30 rounded-lg p-3 space-y-1 max-h-60 overflow-y-auto custom-scrollbar">
-                                        {batch.emails.map((email, idx) => (
+                                        {batch.emails.map((email: any, idx) => (
                                             <div key={idx} className="text-xs text-gray-600 dark:text-gray-400 font-mono truncate">
-                                                {email}
+                                                {typeof email === 'object' ? email.email : email}
                                             </div>
                                         ))}
                                     </div>

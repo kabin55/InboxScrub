@@ -4,7 +4,7 @@ import { Sidebar } from "../components/dashboard/Sidebar";
 import { Topbar } from "../components/dashboard/Topbar";
 import { Card } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
-import { CloudUpload, Send, Mail, User, FileText, Eye, Edit3, CheckCircle } from "lucide-react";
+import { CloudUpload, Send, Mail, User, FileText, Eye, Edit3, CheckCircle, MessageCircle, MessageSquare, Clock, Layers } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useData } from "../context/DataContext";
 import { useNotification } from "../context/NotificationContext";
@@ -12,7 +12,7 @@ import { BatchDisplay } from "../components/BatchDisplay";
 import type { Batch } from "../api/batch";
 import { Package, Loader2, X } from "lucide-react";
 import { createCampaign } from "../api/campaign";
-import { fetchTemplates, type Template } from "../api/template";
+import { fetchTemplates, getTemplateDetails, type Template } from "../api/template";
 
 export default function MassEmail() {
     const { summary, refreshData } = useData();
@@ -31,6 +31,20 @@ export default function MassEmail() {
 
     const [templates, setTemplates] = useState<Template[]>([]);
     const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+    const [templatePreviewUrl, setTemplatePreviewUrl] = useState<string | null>(null);
+    const [loadingPreview, setLoadingPreview] = useState(false);
+
+    const [showChannelModal, setShowChannelModal] = useState(false);
+    const [selectedChannels, setSelectedChannels] = useState<('email' | 'whatsapp' | 'message')[]>(['email']);
+    const [delayHours, setDelayHours] = useState<number>(3);
+
+    const toggleChannel = (channel: 'email' | 'whatsapp' | 'message') => {
+        setSelectedChannels(prev =>
+            prev.includes(channel)
+                ? prev.filter(c => c !== channel)
+                : [...prev, channel]
+        );
+    };
 
     useEffect(() => {
         const loadTemplates = async () => {
@@ -43,6 +57,28 @@ export default function MassEmail() {
         }
         loadTemplates();
     }, []);
+
+    useEffect(() => {
+        const loadTemplatePreview = async () => {
+            if (!selectedTemplateId) {
+                setTemplatePreviewUrl(null);
+                return;
+            }
+
+            setLoadingPreview(true);
+            try {
+                const data = await getTemplateDetails(selectedTemplateId);
+                setTemplatePreviewUrl(data.previewUrl || null);
+            } catch (err) {
+                console.error("Failed to fetch template preview:", err);
+                setTemplatePreviewUrl(null);
+            } finally {
+                setLoadingPreview(false);
+            }
+        };
+
+        loadTemplatePreview();
+    }, [selectedTemplateId]);
 
     // Initial load from navigation state
     useEffect(() => {
@@ -103,19 +139,22 @@ export default function MassEmail() {
             return;
         }
 
-        setSending(true);
-
         if (user?.plan === "Basic") {
             addToast("warning", "Please upgrade to Standard or Premium to use Mass Email Campaigns.");
-            setSending(false);
             return;
         }
 
         if (emailCount > credits) {
             addToast("error", `Insufficient mass mailing credits. You need ${emailCount} but have ${credits}.`);
-            setSending(false);
             return;
         }
+
+        setShowChannelModal(true);
+    };
+
+    const executeSendCampaign = async () => {
+        setShowChannelModal(false);
+        setSending(true);
 
         const campaignData = {
             source: selectedSource,
@@ -123,6 +162,8 @@ export default function MassEmail() {
             fileName: selectedSource === 'file' ? fileName || "Unknown File" : undefined,
             emails: selectedSource === 'file' ? fileEmails : undefined,
             totalEmails: emailCount,
+            channels: selectedChannels,
+            delayHours: (selectedChannels.includes('email') && selectedChannels.includes('whatsapp')) ? delayHours : 0,
             templateId: selectedTemplateId || undefined,
             content: {
                 subject,
@@ -131,12 +172,12 @@ export default function MassEmail() {
             }
         };
 
-        const result = await createCampaign(campaignData);
+        const result = await createCampaign(campaignData as any);
 
         setSending(false);
 
         if (result.success) {
-            addNotification("success", "Campaign created successfully! Emails are being queued.");
+            addNotification("success", `Campaign created successfully! Channels: ${selectedChannels.join(', ')}`);
             await refreshData();
             // Reset logic could go here
         } else {
@@ -370,10 +411,35 @@ The MailFlow Team`);
                                             <p className="text-sm text-gray-500 dark:text-gray-400">From: <span className="font-bold text-gray-900 dark:text-gray-100">{fromName || "MailFlow Team"}</span> &lt;{senderEmail || "noreply@mailflow.com"}&gt;</p>
                                             <p className="text-sm text-gray-500 dark:text-gray-400">Subject: <span className="font-bold text-gray-900 dark:text-gray-100">{subject || "Important Update from MailFlow"}</span></p>
                                         </div>
-                                        <div
-                                            className="prose dark:prose-invert max-w-none flex-1 overflow-y-auto text-gray-800 dark:text-gray-200 whitespace-pre-wrap"
-                                        >
-                                            {emailContent}
+                                        <div className="flex-1 min-h-0 overflow-hidden rounded-lg">
+                                            {selectedTemplateId ? (
+                                                loadingPreview ? (
+                                                    <div className="w-full h-full flex flex-col items-center justify-center space-y-4 bg-gray-50/30 dark:bg-gray-800/20">
+                                                        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                                                        <p className="text-sm text-gray-400">Loading template preview...</p>
+                                                    </div>
+                                                ) : templatePreviewUrl ? (
+                                                    <iframe
+                                                        src={templatePreviewUrl}
+                                                        className="w-full h-full border-0 bg-white"
+                                                        title="Template Preview"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center p-8 text-center text-gray-500 bg-gray-50/30 dark:bg-gray-800/20">
+                                                        <div>
+                                                            <Eye className="w-12 h-12 text-gray-300 dark:text-gray-700 mx-auto mb-4" />
+                                                            <p className="font-medium">Template preview not available</p>
+                                                            <p className="text-xs mt-1">Try selecting another template or switching to custom editor.</p>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            ) : (
+                                                <div
+                                                    className="prose dark:prose-invert max-w-none h-full overflow-y-auto text-gray-800 dark:text-gray-200 whitespace-pre-wrap p-2 shadow-inner bg-gray-50/20 dark:bg-gray-800/10 rounded-lg"
+                                                >
+                                                    {emailContent}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -411,6 +477,139 @@ The MailFlow Team`);
                     © 2026 MailFlow. All rights reserved.
                 </footer>
             </main>
+
+            {/* Channel Selection Modal */}
+            {showChannelModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-gray-100 dark:border-gray-800 animate-in zoom-in-95 duration-200">
+                        <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">Select Communication Channel</h3>
+                            <button onClick={() => setShowChannelModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-8">
+                            <div>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                                    Choose how you want to reach your audience. The same template and content will be used.
+                                </p>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div
+                                        onClick={() => toggleChannel('email')}
+                                        className={`cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-3 transition-all ${selectedChannels.includes('email') ? 'border-blue-600 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-800 hover:border-blue-300 dark:hover:border-gray-600'}`}
+                                    >
+                                        <div className={`p-3 rounded-full flex items-center justify-center ${selectedChannels.includes('email') ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
+                                            <Mail className="w-6 h-6" />
+                                        </div>
+                                        <span className={`font-bold ${selectedChannels.includes('email') ? 'text-blue-700 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300'}`}>Email</span>
+                                    </div>
+
+                                    <div
+                                        onClick={() => toggleChannel('whatsapp')}
+                                        className={`cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-3 transition-all ${selectedChannels.includes('whatsapp') ? 'border-green-600 bg-green-50/50 dark:border-green-500 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-800 hover:border-green-300 dark:hover:border-gray-600'}`}
+                                    >
+                                        <div className={`p-3 rounded-full flex items-center justify-center ${selectedChannels.includes('whatsapp') ? 'bg-green-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
+                                            <MessageCircle className="w-6 h-6" />
+                                        </div>
+                                        <span className={`font-bold ${selectedChannels.includes('whatsapp') ? 'text-green-700 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>WhatsApp</span>
+                                    </div>
+
+                                    <div
+                                        onClick={() => toggleChannel('message')}
+                                        className={`cursor-pointer rounded-xl border-2 p-4 flex flex-col items-center gap-3 transition-all ${selectedChannels.includes('message') ? 'border-purple-600 bg-purple-50/50 dark:border-purple-500 dark:bg-purple-900/20' : 'border-gray-200 dark:border-gray-800 hover:border-purple-300 dark:hover:border-gray-600'}`}
+                                    >
+                                        <div className={`p-3 rounded-full flex items-center justify-center ${selectedChannels.includes('message') ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
+                                            <MessageSquare className="w-6 h-6" />
+                                        </div>
+                                        <span className={`font-bold ${selectedChannels.includes('message') ? 'text-purple-700 dark:text-purple-400' : 'text-gray-700 dark:text-gray-300'}`}>Message</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Conditional Delay & Flow Display */}
+                            {selectedChannels.includes('email') && selectedChannels.includes('whatsapp') ? (
+                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    <div className="p-4 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/20 rounded-xl">
+                                        <label className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider mb-2 block">
+                                            WhatsApp Follow-up Delay (Hours)
+                                        </label>
+                                        <div className="relative">
+                                            <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-orange-300 dark:text-orange-600" />
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                className="w-full rounded-xl border border-orange-200 dark:border-orange-800 bg-white dark:bg-gray-800 pl-12 pr-4 py-3 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-orange-500/20 transition-all outline-none"
+                                                value={delayHours}
+                                                onChange={(e) => setDelayHours(Number(e.target.value))}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="p-6 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700">
+                                        <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-6 flex items-center gap-2">
+                                            <Layers className="w-4 h-4 text-blue-600" />
+                                            Campaign Preview Flow
+                                        </h4>
+                                        <div className="space-y-0 relative ml-2">
+                                            <div className="absolute left-4 top-4 bottom-4 w-0.5 bg-gray-200 dark:bg-gray-700 z-0" />
+
+                                            <div className="relative z-10 flex items-center gap-4 pb-8">
+                                                <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-blue-200 dark:shadow-none">
+                                                    <Mail className="w-4 h-4" />
+                                                </div>
+                                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Phase 1: Email Blast to {emailCount.toLocaleString()} recipients</p>
+                                            </div>
+
+                                            <div className="relative z-10 flex items-center gap-4 pb-8">
+                                                <div className="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center shrink-0 shadow-lg shadow-orange-200 dark:shadow-none">
+                                                    <Clock className="w-4 h-4" />
+                                                </div>
+                                                <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Wait for {delayHours} hour{delayHours !== 1 ? 's' : ''}</p>
+                                            </div>
+
+                                            <div className="relative z-10 flex items-center gap-4">
+                                                <div className="w-8 h-8 rounded-full bg-green-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-green-200 dark:shadow-none">
+                                                    <MessageCircle className="w-4 h-4" />
+                                                </div>
+                                                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Phase 2: WhatsApp Follow-up</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                selectedChannels.length > 0 && (
+                                    <div className="p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20 rounded-xl flex items-center gap-3 animate-in fade-in duration-300">
+                                        <div className="p-2 bg-blue-600 text-white rounded-lg">
+                                            {selectedChannels.includes('email') ? <Mail className="w-5 h-5" /> : selectedChannels.includes('whatsapp') ? <MessageCircle className="w-5 h-5" /> : <MessageSquare className="w-5 h-5" />}
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-blue-900 dark:text-blue-100">
+                                                Single Channel Selected: {selectedChannels[0].charAt(0).toUpperCase() + selectedChannels[0].slice(1)}
+                                            </p>
+                                            <p className="text-xs text-blue-700 dark:text-blue-300">
+                                                Campaign will be delivered immediately to {emailCount.toLocaleString()} recipients.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )
+                            )}
+                        </div>
+                        <div className="p-6 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50 flex justify-end gap-3 flex-wrap">
+                            <Button variant="secondary" onClick={() => setShowChannelModal(false)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={executeSendCampaign}
+                                className="flex items-center gap-2"
+                                disabled={selectedChannels.length === 0}
+                            >
+                                <Send className="w-4 h-4" />
+                                Confirm & Send
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
