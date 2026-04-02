@@ -1,15 +1,10 @@
 import { useState, useEffect } from "react";
-import { Copy, Key, Check, Plus, Trash2, Edit2, AlertTriangle, RefreshCw } from "lucide-react";
-import type { Permission } from "../../api/auth";
+import { Key, Check, Plus, Trash2, Edit2, RefreshCw, Mail, Calendar, Activity } from "lucide-react";
 import { createToken, fetchTokens, revokeToken, updateTokenPermissions, type IamToken } from "../../api/iam";
 import { Button } from "../ui/Button";
 import { useNotification } from "../../context/NotificationContext";
 
-const AVAILABLE_PERMISSIONS: Permission[] = [
-    'Email Sanitization',
-    'Bulk Mailing',
-    'Upload Template'
-];
+const AVAILABLE_ACTIONS = ['Email Sanitization', 'Bulk Mailing', 'Upload Template'];
 
 export const IAMSettings = () => {
     const [tokens, setTokens] = useState<IamToken[]>([]);
@@ -18,10 +13,11 @@ export const IAMSettings = () => {
 
     // Create Token State
     const [isGenerating, setIsGenerating] = useState(false);
-    const [selectedPermissions, setSelectedPermissions] = useState<Permission[]>([]);
+    const [email, setEmail] = useState("");
+    const [selectedActions, setSelectedActions] = useState<string[]>([AVAILABLE_ACTIONS[0]]);
     const [note, setNote] = useState("");
-    const [generatedToken, setGeneratedToken] = useState<string | null>(null);
-    const [copied, setCopied] = useState(false);
+    const [expiresAt, setExpiresAt] = useState("");
+    const [trackEmail, setTrackEmail] = useState(false);
 
     // Edit Token State
     const [editingToken, setEditingToken] = useState<IamToken | null>(null);
@@ -43,29 +39,26 @@ export const IAMSettings = () => {
     }, []);
 
     const handleCreateToken = async () => {
-        if (selectedPermissions.length === 0) return;
+        if (!email) {
+            addToast('error', 'User Email is required');
+            return;
+        }
+        
         setIsGenerating(true);
         try {
-            const res = await createToken(selectedPermissions, note);
-            setGeneratedToken(res.token.tokenValue || "Error: Token not returned");
-            setSelectedPermissions([]);
+            const res = await createToken(email, selectedActions, note, expiresAt || undefined, trackEmail);
+            setEmail("");
+            setSelectedActions([AVAILABLE_ACTIONS[0]]);
             setNote("");
-            addToast('success', "New API token generated successfully.");
+            setExpiresAt("");
+            setTrackEmail(false);
+            addToast('success', res.message || "New API token generated and emailed successfully.");
             loadTokens();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to generate token", error);
-            addToast('error', "Failed to generate token. Please try again.");
+            addToast('error', error.response?.data?.message || "Failed to generate token. Please try again.");
         } finally {
             setIsGenerating(false);
-        }
-    };
-
-    const handleCopy = () => {
-        if (generatedToken) {
-            navigator.clipboard.writeText(generatedToken);
-            setCopied(true);
-            addToast('info', "Token copied to clipboard.");
-            setTimeout(() => setCopied(false), 2000);
         }
     };
 
@@ -81,7 +74,7 @@ export const IAMSettings = () => {
         }
     };
 
-    const handleUpdatePermissions = async (id: string, perms: Permission[]) => {
+    const handleUpdatePermissions = async (id: string, perms: string[]) => {
         try {
             await updateTokenPermissions(id, perms);
             setEditingToken(null);
@@ -93,7 +86,7 @@ export const IAMSettings = () => {
         }
     };
 
-    const togglePermission = (perm: Permission, currentList: Permission[]) => {
+    const togglePermission = (perm: string, currentList: string[]) => {
         if (currentList.includes(perm)) {
             return currentList.filter(p => p !== perm);
         }
@@ -109,73 +102,114 @@ export const IAMSettings = () => {
                     </div>
                     <div>
                         <h3 className="font-bold text-gray-900 dark:text-gray-100">Access Management (iAM)</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Manage API tokens and system access</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Generate and securely email system access tokens</p>
                     </div>
                 </div>
             </div>
 
             {/* Token Generation Form */}
             <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl p-5 mb-8 border border-gray-100 dark:border-gray-800">
-                <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-4 text-sm uppercase tracking-wider">Generate New Token</h4>
+                <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-4 text-sm uppercase tracking-wider">Generate & Assign New Token</h4>
 
-                <div className="space-y-4 mb-6">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Select Permissions:</p>
-                    <div className="flex flex-wrap gap-3">
-                        {AVAILABLE_PERMISSIONS.map(perm => (
-                            <label key={perm} className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-colors ${selectedPermissions.includes(perm) ? 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/30 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300' : 'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-indigo-300'}`}>
+                <div className="mb-6">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 block">Assign Permissions</label>
+                    <div className="flex flex-wrap gap-4 p-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg">
+                        {AVAILABLE_ACTIONS.map(act => (
+                            <label key={act} className="flex items-center gap-2 cursor-pointer">
                                 <input
                                     type="checkbox"
-                                    className="hidden"
-                                    checked={selectedPermissions.includes(perm)}
-                                    onChange={() => setSelectedPermissions(togglePermission(perm, selectedPermissions))}
+                                    checked={selectedActions.includes(act)}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            setSelectedActions([...selectedActions, act]);
+                                        } else {
+                                            setSelectedActions(selectedActions.filter(a => a !== act));
+                                        }
+                                    }}
+                                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 bg-white"
                                 />
-                                <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedPermissions.includes(perm) ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 dark:border-gray-600'}`}>
-                                    {selectedPermissions.includes(perm) && <Check className="w-3 h-3 text-white" />}
-                                </div>
-                                <span className="text-sm font-semibold">{perm}</span>
+                                <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{act}</span>
                             </label>
                         ))}
                     </div>
                 </div>
 
-                <div className="space-y-4 mb-6">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 font-medium">Add a Note (Optional):</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div className="space-y-4">
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                            <Mail className="w-4 h-4 text-gray-400" /> User Email Address
+                        </label>
+                        <input
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="user@example.com"
+                            className="w-full px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-gray-800 dark:text-gray-200"
+                        />
+                    </div>
+
+                    <div className="space-y-4">
+                        <label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-gray-400" /> Expiration Date (Optional)
+                        </label>
+                        <div className="space-y-2">
+                            <input
+                                type="date"
+                                value={expiresAt}
+                                onChange={(e) => setExpiresAt(e.target.value)}
+                                min={new Date().toISOString().split('T')[0]}
+                                className="w-full px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-gray-800 dark:text-gray-200"
+                            />
+                            <div className="flex flex-wrap gap-2 items-center">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Add quickly:</span>
+                                {[7, 15, 20, 30].map(days => (
+                                    <button
+                                        key={days}
+                                        type="button"
+                                        onClick={() => {
+                                            const d = new Date();
+                                            d.setDate(d.getDate() + days);
+                                            setExpiresAt(d.toISOString().split('T')[0]);
+                                        }}
+                                        className="px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-gray-600 dark:text-gray-300 hover:text-indigo-700 dark:hover:text-indigo-400 rounded-md transition-colors"
+                                    >
+                                        +{days} Days
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mb-6 space-y-4">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Add a Note (Optional)</label>
                     <input
                         type="text"
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        placeholder="e.g. For marketing team campaign"
-                        className="w-full px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder-gray-400"
+                        placeholder="e.g. For marketing campaign"
+                        className="w-full px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none text-gray-800 dark:text-gray-200"
                     />
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <Button onClick={handleCreateToken} disabled={isGenerating || selectedPermissions.length === 0} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2">{isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Generate Token</Button>
+                <div className="flex items-center gap-3 mb-6">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={trackEmail}
+                            onChange={(e) => setTrackEmail(e.target.checked)}
+                            className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 bg-white"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300 flex items-center gap-1.5"><Activity className="w-3.5 h-3.5" /> Track Token Delivery Email</span>
+                    </label>
                 </div>
 
-                {generatedToken && (
-                    <div className="mt-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
-                        <div className="flex items-start gap-3">
-                            <AlertTriangle className="w-5 h-5 text-green-600 dark:text-green-400 shrink-0 mt-0.5" />
-                            <div className="w-full">
-                                <h5 className="font-bold text-green-800 dark:text-green-300 text-sm mb-1">Token Generated Successfully</h5>
-                                <p className="text-sm text-green-700 dark:text-green-400 mb-3">Please copy this token now. You will not be able to see it again.</p>
-                                <div className="flex items-center gap-2">
-                                    <code className="flex-1 block p-3 bg-white dark:bg-gray-900 border border-green-100 dark:border-green-800 rounded-lg text-sm font-mono text-gray-800 dark:text-gray-200 tracking-wider">
-                                        {generatedToken}
-                                    </code>
-                                    <button
-                                        onClick={handleCopy}
-                                        className="p-3 bg-white dark:bg-gray-900 border border-green-100 dark:border-green-800 rounded-lg hover:bg-green-50 dark:hover:bg-gray-800 transition-colors tooltip text-gray-500 dark:text-gray-400"
-                                        title="Copy to clipboard"
-                                    >
-                                        {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
+                <div className="flex items-center gap-4">
+                    <Button onClick={handleCreateToken} disabled={isGenerating || !email} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2">
+                        {isGenerating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} 
+                        Generate & Email Token
+                    </Button>
+                </div>
             </div>
 
             {/* Token List */}
@@ -191,11 +225,11 @@ export const IAMSettings = () => {
                     <table className="w-full text-sm text-left">
                         <thead className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-800/50 rounded-lg">
                             <tr>
-                                <th className="px-4 py-3 rounded-l-lg">ID</th>
-                                <th className="px-4 py-3">Permissions</th>
-                                <th className="px-4 py-3">Created</th>
+                                <th className="px-4 py-3 rounded-l-lg">User Email</th>
+                                <th className="px-4 py-3">Action(s)</th>
+                                <th className="px-4 py-3">Expires At</th>
                                 <th className="px-4 py-3">Status</th>
-                                <th className="px-4 py-3">Note</th>
+                                <th className="px-4 py-3">Tracking</th>
                                 <th className="px-4 py-3 text-right rounded-r-lg">Actions</th>
                             </tr>
                         </thead>
@@ -209,13 +243,13 @@ export const IAMSettings = () => {
                             )}
                             {tokens.map(token => (
                                 <tr key={token._id} className="border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors">
-                                    <td className="px-4 py-3 font-mono text-xs text-gray-500">
-                                        ...{token._id.slice(-6)}
+                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
+                                        {token.assignedEmail || '-'}
                                     </td>
                                     <td className="px-4 py-3">
                                         {editingToken?._id === token._id ? (
                                             <div className="flex flex-wrap gap-1">
-                                                {AVAILABLE_PERMISSIONS.map(perm => (
+                                                {AVAILABLE_ACTIONS.map(perm => (
                                                     <label key={perm} className="flex items-center gap-1 text-xs whitespace-nowrap bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded cursor-pointer">
                                                         <input
                                                             type="checkbox"
@@ -229,7 +263,7 @@ export const IAMSettings = () => {
                                                         <div className={`w-3 h-3 rounded-sm flex items-center justify-center ${editingToken.permissions.includes(perm) ? 'bg-indigo-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
                                                             {editingToken.permissions.includes(perm) && <Check className="w-2 h-2 text-white" />}
                                                         </div>
-                                                        {perm.split(' ')[0]} {/* Short name */}
+                                                        {perm}
                                                     </label>
                                                 ))}
                                                 <div className="flex gap-1 ml-2">
@@ -249,7 +283,7 @@ export const IAMSettings = () => {
                                         )}
                                     </td>
                                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                                        {new Date(token.createdAt).toLocaleDateString()}
+                                        {token.expiresAt ? new Date(token.expiresAt).toLocaleDateString() : 'Never'}
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className={`px-2.5 py-1 text-[10px] font-black rounded-lg border uppercase tracking-wider whitespace-nowrap ${token.status === 'Active'
@@ -259,8 +293,12 @@ export const IAMSettings = () => {
                                             {token.status}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-[150px] truncate" title={token.note}>
-                                        {token.note || '-'}
+                                    <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                                        {token.jobId ? (
+                                            <span className="text-xs text-indigo-500 flex items-center gap-1" title={token.jobId}><Activity className="w-3 h-3"/> Tracked</span>
+                                        ) : (
+                                            <span className="text-xs text-gray-400">-</span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3 text-right">
                                         <div className="flex items-center justify-end gap-2">

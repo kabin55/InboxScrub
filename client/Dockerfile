@@ -1,91 +1,34 @@
-# # # ---------- Stage 1: Build ----------
-# # FROM node:20-alpine AS builder
-
-# # WORKDIR /app
-
-# # COPY package*.json ./
-# # RUN npm install
-
-# # COPY . .
-# # RUN npm run build
-
-# # # ---------- Stage 2: Production ----------
-# # FROM nginx:stable-alpine
-
-# # # Remove default nginx static files
-# # RUN rm -rf /usr/share/nginx/html/*
-
-# # # Copy built files from builder
-# # COPY --from=builder /app/dist /usr/share/nginx/html
-
-# # EXPOSE 80
-
-# # CMD ["nginx", "-g", "daemon off;"]
-
-
-# # Stage 1: build
-# FROM node:18 AS build
-
-# WORKDIR /app
-# COPY package*.json ./
-# RUN npm install
-# COPY . .
-
-# # Accept backend URL at build time
-# ARG VITE_API_BASE_URL
-# ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
-
-# # Build the app
-# RUN npm run build
-
-# # Stage 2: serve with nginx
-# FROM nginx:alpine
-# COPY --from=build /app/dist /usr/share/nginx/html
-# EXPOSE 80
-# CMD ["nginx", "-g", "daemon off;"]
-
-# # ---------- Stage 1: Build ----------
-# FROM node:20-alpine AS builder
-
-# WORKDIR /app
-
-# COPY package*.json ./
-# RUN npm install
-
-# COPY . .
-# RUN npm run build
-
-# # ---------- Stage 2: Production ----------
-# FROM nginx:stable-alpine
-
-# # Remove default nginx static files
-# RUN rm -rf /usr/share/nginx/html/*
-
-# # Copy built files from builder
-# COPY --from=builder /app/dist /usr/share/nginx/html
-
-# EXPOSE 80
-
-# CMD ["nginx", "-g", "daemon off;"]
-
-
-# Stage 1: build
-FROM node:18 AS build
+# ---------- Stage 1: Build ----------
+FROM node:20-alpine AS build
 
 WORKDIR /app
+
 COPY package*.json ./
-RUN npm install
+RUN npm ci
+
 COPY . .
 
-# Accept backend URL at build time
+# Inject API URL at build time
 ARG VITE_API_BASE_URL
+ARG VITE_GOOGLE_CLIENT_ID
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 
-# Build the app
+# Build Vite app
 RUN npm run build
 
-# Stage 2: serve with nginx
+# ---------- Stage 2: Serve ----------
 FROM nginx:alpine
+
+# Remove default config
+RUN rm /etc/nginx/conf.d/default.conf
+
+# Copy custom nginx config (SPA support required)
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy built files
 COPY --from=build /app/dist /usr/share/nginx/html
+
 EXPOSE 80
+
 CMD ["nginx", "-g", "daemon off;"]

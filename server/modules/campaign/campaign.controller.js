@@ -77,7 +77,7 @@ export const sendWhatsappFollowup = async (req, res) => {
             jobId,
             opened: false,
             phone: { $exists: true, $ne: "" },
-            whatsappStatus: { $in: ["pending", "failed"] } 
+            whatsappStatus: { $in: ["pending", "failed"] }
         });
 
         if (pendingContacts.length === 0) {
@@ -333,7 +333,7 @@ export const getCampaignDetails = async (req, res) => {
         const { jobId } = req.params;
         const userId = req.user.user_id;
 
-        const job = await Job.findOne({ _id: jobId, userId }); 
+        const job = await Job.findOne({ _id: jobId, userId });
         if (!job) return res.status(404).json({ message: "Campaign not found" });
 
         const statusCounts = await EmailStatus.aggregate([

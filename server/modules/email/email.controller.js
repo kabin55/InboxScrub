@@ -7,13 +7,18 @@ import ActivityLog from "../../models/activityLog.js";
 import Job from "../../models/job.js";
 import { v4 as uuidv4 } from "uuid";
 import { parseEmailsFromBuffer } from "../../utils/emailParser.js";
-import { Worker } from 'worker_threads';
+import Piscina from 'piscina';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const workerPath = path.resolve(__dirname, 'email.worker.js');
+
+const validationPool = new Piscina({
+  filename: workerPath,
+  maxThreads: 10
+});
 
 export const validateEmail = async (req, res) => {
   try {
@@ -74,8 +79,7 @@ export const preParseEmailCount = async (req, res, next) => {
         message: "No file uploaded",
       });
     }
-
-    const emails = parseEmailsFromBuffer(req.file.buffer);
+    const emails = await parseEmailsFromBuffer(req.file.buffer);
 
     if (emails.length === 0) {
       return res.status(400).json({
@@ -104,8 +108,7 @@ export const bulkValidate = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-
-    const emails = parseEmailsFromBuffer(req.file.buffer);
+    const emails = await parseEmailsFromBuffer(req.file.buffer);
 
     if (emails.length === 0) {
       return res.status(400).json({ message: "No valid emails found" });
@@ -113,47 +116,39 @@ export const bulkValidate = async (req, res) => {
 
     const { existingEmails, newEmails: emailsToValidate } = await processBulkEmails(emails);
 
-    const concurrency = Math.min(emailsToValidate.length, 10); 
+    const concurrency = Math.min(emailsToValidate.length, 10);
     const queue = [...emailsToValidate];
     const newResults = [];
     const bulkId = uuidv4();
 
     if (queue.length > 0) {
-        const workers = Array.from({ length: concurrency }, () => {
-            return new Promise((resolve) => {
-                const worker = new Worker(workerPath);
-                
-                const processNext = () => {
-                    const emailObj = queue.pop();
-                    if (!emailObj) {
-                        worker.terminate();
-                        return resolve();
-                    }
-                    
-                    worker.postMessage({ email: emailObj.email, config: {} });
-                    
-                    worker.once('message', (msg) => {
-                        if (msg.success) {
-                            newResults.push({ ...msg.result, name: emailObj.name, phone: emailObj.phone });
-                        } else {
-                            newResults.push({
-                                name: emailObj.name, 
-                                phone: emailObj.phone, 
-                                email: emailObj.email, 
-                                confidence: "Low",
-                                error: "Worker validation failed", 
-                                errorMessage: msg.error
-                            });
-                        }
-                        processNext();
-                    });
-                };
-                
-                processNext();
+      const promises = queue.map(async (emailObj) => {
+        try {
+          const result = await validationPool.run({ email: emailObj.email, config: {} });
+          if (result.success) {
+            newResults.push({ ...result.result, name: emailObj.name, phone: emailObj.phone });
+          } else {
+            newResults.push({
+              name: emailObj.name,
+              phone: emailObj.phone,
+              email: emailObj.email,
+              confidence: "Low",
+              error: "Worker validation failed",
+              errorMessage: result.error
             });
-        });
-
-        await Promise.all(workers);
+          }
+        } catch (err) {
+          newResults.push({
+            name: emailObj.name,
+            phone: emailObj.phone,
+            email: emailObj.email,
+            confidence: "Low",
+            error: "Worker execution failed",
+            errorMessage: err.message
+          });
+        }
+      });
+      await Promise.all(promises);
     }
 
     if (req.user && req.user.user_id && newResults.length > 0) {
@@ -213,9 +208,9 @@ export const bulkValidate = async (req, res) => {
     if (req.user && req.user.user_id && highConfidenceEmails.length > 0) {
       try {
         const validEmails = highConfidenceEmails.map(r => ({
-           name: r.name || "",
-           email: r.email,
-           phone: r.phone || ""
+          name: r.name || "",
+          email: r.email,
+          phone: r.phone || ""
         }));
 
         let userBatch = await Batch.findOne({ user_id: req.user.user_id });
@@ -345,7 +340,7 @@ export const getValidationSummary = async (req, res) => {
         confidence: doc.confidence,
         reason,
         validated_at: doc.created_at,
-        validation_details: doc.validation_details 
+        validation_details: doc.validation_details
       };
     });
 
@@ -395,7 +390,7 @@ export const getValidationSummary = async (req, res) => {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$created_at" } },
           single: { $sum: { $cond: [{ $eq: ["$type", "single"] }, 1, 0] } },
           bulk: { $sum: { $cond: [{ $eq: ["$type", "bulk"] }, 1, 0] } },
-          campaigns: { $sum: 0 } 
+          campaigns: { $sum: 0 }
         }
       },
       { $sort: { "_id": 1 } }
@@ -448,7 +443,7 @@ export const getValidationSummary = async (req, res) => {
       email_result_summary,
       singleEmail,
       bulkEmailHistory,
-      activity_data, 
+      activity_data,
       validation_counts: {
         single: validation_counts.singleCount,
         ten: validation_counts.tenEmailCount,

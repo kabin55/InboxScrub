@@ -12,6 +12,13 @@ const accessTokenSchema = new mongoose.Schema(
             required: true,
             ref: "User",
         },
+        assigned_email: {
+            type: String,
+            required: true,
+        },
+        job_id: {
+            type: String,
+        },
         permissions: {
             type: [String],
             default: [],

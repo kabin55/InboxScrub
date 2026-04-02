@@ -29,8 +29,16 @@ router.get("/history", superAdminAuth, getActivityLogs);
 router.get("/campaigns", superAdminAuth, getAllCampaigns);
 router.get("/campaigns/:jobId", superAdminAuth, getCampaignDetails);
 
+import rateLimit from "express-rate-limit";
+
+const tokenCreationLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20, // limit each IP to 20 requests per windowMs
+    message: { message: "Too many tokens created, please try again later." }
+});
+
 // IAM Token Management Routes
-router.post("/tokens", requireAuth, createToken);
+router.post("/tokens", requireAuth, tokenCreationLimiter, createToken);
 router.get("/tokens", requireAuth, getTokens);
 router.patch("/tokens/:id", requireAuth, updateToken);
 router.delete("/tokens/:id", requireAuth, revokeToken);

@@ -1,4 +1,3 @@
-import { parentPort, workerData } from 'worker_threads';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { validateEmailDeliverability } from './email.validation.service.js';
@@ -21,21 +20,18 @@ const connectWorkerDB = async () => {
     }
 };
 
-/**
- * Handle incoming messages from the parent thread
- */
-parentPort.on('message', async (data) => {
+export default async (data) => {
     const { email, config } = data;
-    
+
     try {
         await connectWorkerDB();
         const result = await validateEmailDeliverability(email, config);
-        parentPort.postMessage({ success: true, result });
+        return { success: true, result };
     } catch (error) {
-        parentPort.postMessage({ 
-            success: false, 
-            email, 
-            error: error.message 
-        });
+        return {
+            success: false,
+            email,
+            error: error.message
+        };
     }
-});
+};

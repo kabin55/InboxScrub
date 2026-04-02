@@ -33,6 +33,29 @@ async function sendEmail({ to, from, subject, html, text }) {
     return sesClient.send(command);
 }
 
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function sendEmailWithBackoff(params, maxRetries = 3) {
+    let attempt = 0;
+    while (attempt < maxRetries) {
+        try {
+            return await sendEmail(params);
+        } catch (error) {
+            if (error.name === 'ThrottlingException' || error.name === 'TooManyRequestsException' || error.$metadata?.httpStatusCode === 429) {
+                attempt++;
+                if (attempt >= maxRetries) {
+                    throw error;
+                }
+                const baseDelay = Math.pow(2, attempt) * 100;
+                const jitter = Math.random() * 100;
+                await wait(baseDelay + jitter);
+            } else {
+                throw error;
+            }
+        }
+    }
+}
+
 export const handler = async (event) => {
     console.log("Received event structure");
     try {
@@ -139,18 +162,18 @@ export const handler = async (event) => {
                 const promises = batch.map(async (recipient) => {
                     const email = recipient.email;
                     const trackingId = recipient.trackingId;
-                    
+
                     // Construct Tracking Pixel (HTML only)
                     const trackingPixel = `<img src="${process.env.TRACKING_URL}/${trackingId}" width="1" height="1" style="display:none;" />`;
                     const htmlBodyWithTracking = emailBody + trackingPixel;
-                    
+
                     // Construct Clean Text Body (No HTML)
                     const textBody = emailBody
                         .replace(/<[^>]*>?/gm, '') // Strip HTML tags
                         .replace(/&nbsp;/g, ' '); // Clean entities
 
                     try {
-                        const response = await sendEmail({
+                        const response = await sendEmailWithBackoff({
                             to: email,
                             from: sender,
                             subject,
@@ -204,11 +227,11 @@ export const handler = async (event) => {
             console.log(`Job ${jobId} Processing Completed. Success: ${successCount}, Fail: ${failCount}`);
             console.log("results", results)
 
-            // Note: If some failed, and we want SQS to auto-retry the entire message, 
-            // we could throw an error here depending on the requirement.
-            // Currently it marks them as "failed" in DB and completes the Lambda successfully.
-            // If strict SQS DLQ usage is desired, uncomment the below line to trigger Lambda failure for SQS retry:
-            // if (failCount > 0) throw new Error(`${failCount} emails failed to send. Triggering retry for Job ${jobId}`);
+            // Note: If some failed, throw an error to trigger SQS auto-retry.
+            // Since idempotency check explicitly targets 'queued' and 'failed', already 'sent' contacts will be skipped perfectly on retry!
+            if (failCount > 0) {
+                throw new Error(`${failCount} emails failed to send. Triggering retry for Job ${jobId}`);
+            }
 
             responses.push({
                 jobId,

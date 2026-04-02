@@ -1,10 +1,12 @@
 import apiClient from "./apiClient";
-import type { AuthResponse, Permission } from "./auth";
+import type { AuthResponse } from "./auth";
 
 export interface IamToken {
     _id: string; // Internal MongoDB ID
     tokenValue?: string; // Only returned on creation
-    permissions: Permission[];
+    assignedEmail: string;
+    jobId?: string;
+    permissions: string[];
     expiresAt?: string | null;
     status: 'Active' | 'Revoked' | 'Expired';
     createdAt: string;
@@ -18,6 +20,7 @@ export interface TokenListResponse {
 
 export interface TokenCreateResponse {
     success: boolean;
+    message?: string;
     token: IamToken;
 }
 
@@ -34,15 +37,16 @@ export interface TokenRevokeResponse {
 const API_BASE = "/api/admin/tokens";
 
 export const createToken = async (
-    permissions: Permission[],
+    email: string,
+    permissions: string[],
     note?: string,
-    expiresAt?: string
+    expiresAt?: string,
+    trackEmail?: boolean
 ): Promise<TokenCreateResponse> => {
     const res = await apiClient.post<TokenCreateResponse>(
         API_BASE,
-        { permissions, note, expiresAt }
+        { email, permissions, note, expiresAt, trackEmail }
     );
-    console.log(`createtokenfunction`, res.data);
     return res.data;
 };
 
@@ -55,7 +59,7 @@ export const fetchTokens = async (): Promise<TokenListResponse> => {
 
 export const updateTokenPermissions = async (
     tokenId: string,
-    permissions: Permission[]
+    permissions: string[]
 ): Promise<TokenUpdateResponse> => {
     const res = await apiClient.patch<TokenUpdateResponse>(
         `${API_BASE}/${tokenId}`,
