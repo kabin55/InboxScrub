@@ -1,0 +1,18 @@
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+
+certificatesResolvers:
+  myresolver:
+    acme:
+      email: emailsanitization@gmail.com  # Replace with your email
+      storage: /acme.json
+      httpChallenge:
+        entryPoint: web
