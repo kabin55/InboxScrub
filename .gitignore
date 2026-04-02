@@ -1,5 +1,4 @@
 client/node_modules/*
-client/package-lock.json
 client/yarn.lock
 
 my.csv
@@ -7,7 +6,6 @@ server.json
 ses-mailer.json
 client.json
 server/node_modules/*
-server/package-lock.json   
 .env
 .env
 ses-mailer/.env
