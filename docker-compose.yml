@@ -31,7 +31,7 @@ services:
     image: ${BACKEND_IMAGE:-backend:latest}
     container_name: backend_server
     env_file:
-      - .env
+      - .env_server
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
@@ -49,7 +49,7 @@ services:
     image: ${SES_IMAGE:-ses-mailer:latest}
     container_name: ses_mailer
     env_file:
-      - ./ses-mailer/.env
+      - .env_ses
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
