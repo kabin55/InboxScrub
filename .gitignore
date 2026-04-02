@@ -1,6 +1,7 @@
 client/node_modules/*
 client/yarn.lock
 
+Jenkinsfile
 my.csv
 server.json
 ses-mailer.json

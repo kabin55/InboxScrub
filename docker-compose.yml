@@ -28,14 +28,14 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-    image: april_server:v1
+    image: ${BACKEND_IMAGE:-backend:latest}
     container_name: backend_server
     env_file:
       - .env
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.server.rule=Host(`new551.duckdns.org`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.server.rule=Host(`${DOMAIN:-new551.duckdns.org}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.server.entrypoints=websecure"
       - "traefik.http.routers.server.tls.certresolver=myresolver"
       - "traefik.http.services.server.loadbalancer.server.port=5000"
@@ -46,14 +46,14 @@ services:
     build:
       context: ./ses-mailer
       dockerfile: Dockerfile
-    image: april_ses_mailer:v1
+    image: ${SES_IMAGE:-ses-mailer:latest}
     container_name: ses_mailer
     env_file:
       - ./ses-mailer/.env
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.ses-mailer.rule=Host(`new551.duckdns.org`) && PathPrefix(`/mail`)"
+      - "traefik.http.routers.ses-mailer.rule=Host(`${DOMAIN:-new551.duckdns.org}`) && PathPrefix(`/mail`)"
       - "traefik.http.routers.ses-mailer.entrypoints=websecure"
       - "traefik.http.routers.ses-mailer.tls.certresolver=myresolver"
       - "traefik.http.services.ses-mailer.loadbalancer.server.port=8000"
@@ -65,14 +65,14 @@ services:
       context: ./client
       dockerfile: Dockerfile
       args:
-        VITE_GOOGLE_CLIENT_ID: 300308332418-10857pf01ct3q1ihplql5fjucn7ct08q.apps.googleusercontent.com
-        VITE_API_BASE_URL: https://new551.duckdns.org/api
-    image: april_client:v1
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-300308332418-10857pf01ct3q1ihplql5fjucn7ct08q.apps.googleusercontent.com}
+        VITE_API_BASE_URL: https://${DOMAIN:-new551.duckdns.org}/api
+    image: ${FRONTEND_IMAGE:-frontend:latest}
     container_name: frontend_client
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.client.rule=Host(`new551.duckdns.org`)"
+      - "traefik.http.routers.client.rule=Host(`${DOMAIN:-new551.duckdns.org}`)"
       - "traefik.http.routers.client.entrypoints=websecure"
       - "traefik.http.routers.client.tls.certresolver=myresolver"
       - "traefik.http.services.client.loadbalancer.server.port=80"
