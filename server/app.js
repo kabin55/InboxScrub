@@ -21,13 +21,11 @@ app.use(cookieParser());
 app.use(helmet({ crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" } }));
 
 app.use(cors({
-  origin: ["http://localhost:3000",
+  origin: process.env.ACCEPT_ORIGIN ? process.env.ACCEPT_ORIGIN.split(",") : [
+    "http://localhost:3000",
     "http://localhost:8000",
-    "http://ec2-54-156-101-212.compute-1.amazonaws.com/",
-    "http://54.156.101.212:3000",
-    "https:deepakclass.info",
-    "https:www.deepakclass.info",
-    "https://decade-pursuant-cdt-regime.trycloudflare.com"
+    "http://new551.duckdns.org",
+    "https://new551.duckdns.org"
   ],
   credentials: true,
 })

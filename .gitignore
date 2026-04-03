@@ -2,6 +2,7 @@ client/node_modules/*
 client/yarn.lock
 
 Jenkinsfile
+old_dockercompose
 my.csv
 server.json
 ses-mailer.json
