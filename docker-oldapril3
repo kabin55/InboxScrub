@@ -10,11 +10,20 @@ services:
       - "--providers.docker=true"
       - "--providers.docker.exposedByDefault=false"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.myresolver.acme.email=emailsanitization@gmail.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/acme.json"
     ports:
       - "80:80"
+      - "443:443"
       - "8082:8080"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./traefik/acme.json:/acme.json"
     networks:
       - app-network
 
@@ -30,7 +39,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.server.rule=Host(`${DOMAIN:-new551.duckdns.org}`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.server.entrypoints=web"
+      - "traefik.http.routers.server.entrypoints=websecure"
+      - "traefik.http.routers.server.tls.certresolver=myresolver"
       - "traefik.http.services.server.loadbalancer.server.port=5000"
     networks:
       - app-network
@@ -47,7 +57,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.ses-mailer.rule=Host(`${DOMAIN:-new551.duckdns.org}`) && PathPrefix(`/mail`)"
-      - "traefik.http.routers.ses-mailer.entrypoints=web"
+      - "traefik.http.routers.ses-mailer.entrypoints=websecure"
+      - "traefik.http.routers.ses-mailer.tls.certresolver=myresolver"
       - "traefik.http.services.ses-mailer.loadbalancer.server.port=8000"
     networks:
       - app-network
@@ -58,14 +69,15 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-300308332418-10857pf01ct3q1ihplql5fjucn7ct08q.apps.googleusercontent.com}
-        VITE_API_BASE_URL: http://${DOMAIN:-new551.duckdns.org}/api
+        VITE_API_BASE_URL: https://${DOMAIN:-new551.duckdns.org}/api
     image: ${FRONTEND_IMAGE:-frontend:latest}
     container_name: frontend_client
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.frontend.rule=Host(`${DOMAIN:-new551.duckdns.org}`)"
-      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=myresolver"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
     depends_on:
       - server
