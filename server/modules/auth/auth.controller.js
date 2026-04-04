@@ -85,7 +85,7 @@ export const googleAuth = async (req, res) => {
           [
             {
               user_id: user._id,
-              credits: 100, 
+              credits: 100,
               total_credits: 100,
               massMalingCredits: initialMassMailingCredits,
             },
@@ -105,8 +105,8 @@ export const googleAuth = async (req, res) => {
     // 6. Store JWT in HTTP-only cookie
     res.cookie("session_token", jwtToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: false, // Allow over HTTP
+      sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
@@ -161,8 +161,8 @@ export const getSession = async (req, res) => {
 export const logout = async (req, res) => {
   res.clearCookie("session_token", {
     httpOnly: true,
-    sameSite: "strict",
-    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    secure: false,
   });
 
   res.json({ success: true });
@@ -255,9 +255,9 @@ export const tokenLogin = async (req, res) => {
 
       res.cookie("session_token", jwtToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        maxAge: 7 * 24 * 60 * 60 * 1000, 
+        secure: false, // Allow over HTTP
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
       return res.status(200).json({
