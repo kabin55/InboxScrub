@@ -24,8 +24,7 @@ app.use(cors({
   origin: process.env.ACCEPT_ORIGIN ? process.env.ACCEPT_ORIGIN.split(",") : [
     "http://localhost:3000",
     "http://localhost:8000",
-    "http://new551.duckdns.org",
-    "https://new551.duckdns.org"
+    "http://new551.duckdns.org"
   ],
   credentials: true,
 })
